@@ -6,10 +6,15 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include <any>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
 #include <iostream>
+#include <nlohmann/json.hpp>
 #include <string>
+#include <unordered_map>
+using json = nlohmann::json;
 
 #define PORT 8080
 #define BUFFER_LEN 3000
@@ -24,6 +29,7 @@
 //  - create telemetry thread (serializing KV store "state" and sending out)
 //  - create python client
 //  - create pytests
+//  - nice to have: logging
 
 int main() {
   // this sets up a socket to communicate on port 8080
@@ -33,6 +39,9 @@ int main() {
   // using C-style arrays, memcpy, C-style strings (char *), etc. is obviously
   // not ideal in modern C++, but it is a necessary evil for using the Linux
   // socket API
+
+  std::string file_path = "data/test.json";
+  JsonData defn = parseDefinitionFile(file_path);
 
   int server_fd{};
   int new_socket{};
@@ -142,4 +151,41 @@ void handleCommand(std::string message) {
   // stream of tlm over a socket
   //
   // TODO: use pytest to validate the commands being functional
+}
+
+JsonData parseDefinitionFile(std::string file_path) {
+  std::ifstream file(file_path);
+  if (!file) {
+    std::cerr << "Cannot open file: " << file_path << std::endl;
+  }
+
+  JsonData jsonData{};
+
+  json data = json::parse(file);
+  // std::cout << data;
+  auto commands = data["commands"];
+  for (auto &command : commands) {
+    std::cout << command.dump(2) << std::endl;
+
+    // goal: map string (command argument from JSON) to type (uint32, float64,
+    // etc.) how:
+    //  - store type as string
+    //  - store size of the type (from a handmade map)
+    //  - store tuple<name, type, size> as part of the command data object
+    //  - when parsing data, parse size bytes & save into a variant
+    //  - then, unpack that variant using a mega switch statement mapping the
+    //  type string to a type
+    std::vector<Argument> args{};
+    for (const auto &[key, value] : command["arguments"].items()) {
+      args.push_back({key, value, type_to_size(value)});
+      // std::cout << "arg type " << argument.type
+      // << " has size: " << argument.size << std::endl;
+    }
+
+    CommandData cmdData{command["name"], args};
+    jsonData.map.insert({{command["opcode"], cmdData}});
+  }
+
+  std::cout << jsonData.map.size() << std::endl;
+  return jsonData;
 }
