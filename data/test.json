@@ -1,0 +1,18 @@
+{
+"commands": [{
+	"name": "name",
+	"opcode": "0xFF",
+	"arguments": {
+		"arg_name_1": "float",
+		"arg_name_2": "uint16_t"
+	}
+},
+	{
+			"name" : "command2", 
+			"opcode" : "0x03",
+			"arguments": {
+				"arg_1": "bool",
+				"arg_2": "char"
+			}
+	}]
+}
