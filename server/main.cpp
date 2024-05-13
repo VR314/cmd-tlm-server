@@ -7,13 +7,17 @@
 #include <unistd.h>
 
 #include <any>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <iostream>
 #include <nlohmann/json.hpp>
+#include <numeric>
 #include <string>
 #include <unordered_map>
+
+#include "commands.hpp"
 using json = nlohmann::json;
 
 #define PORT 8080
@@ -88,9 +92,8 @@ int main() {
 
     // remove trailing newline, if exists
     if (buffer[num_bytes_read - 1] == '\n') buffer[num_bytes_read - 1] = '\0';
-    printf("Message: \"%s\"\nNumber of bytes: %ld\n", buffer, num_bytes_read);
-    std::string message(buffer);
-    handleCommand(message);
+    printf("Message: \"%p\"\nNumber of bytes: %ld\n", buffer, num_bytes_read);
+    handleCommand(buffer, defn);
 
     // Respond over the same socket
     write(new_socket, hello, strlen(hello));
@@ -101,17 +104,47 @@ int main() {
   return 0;
 }
 
+// sample packet:
+// 00 06 00 03 00 09
+// simple sum checksum
+
 // TODO: why did making this argument std::string &message cause a linker error?
 // Make this by reference to avoid unneccessary copies
-void handleCommand(std::string message) {
-  std::cout << "Command to handle: " << message << std::endl;
+void handleCommand(char *buffer, JsonData &defn) {
+  std::cout << "Command string to handle: " << buffer << std::endl;
+  char packet_length_bytes[2] = {buffer[0], buffer[1]};
+  char opcode_bytes[2] = {buffer[2], buffer[3]};
+  uint16_t packet_length = packet_length_bytes[0] * 16 + packet_length_bytes[1];
+  std::cout << "Packet Length: " << packet_length << std::endl;
+  uint16_t opcode = opcode_bytes[0] * 16 + opcode_bytes[1];
+  std::cout << "Opcode: " << opcode << std::endl;
+  uint16_t payload_length = packet_length - 2 - 2 - 2;
+  std::cout << "Payload Length: " << payload_length << std::endl;
+
+  std::vector<char> payload(buffer + 4, buffer + 4 + payload_length);
+  std::cout << "Payload Length: " << payload.size() << std::endl;
+
+  char checksum_bytes[2] = {buffer[packet_length - 2],
+                            buffer[packet_length - 1]};
+
+  uint16_t checksum = checksum_bytes[0] * 16 + checksum_bytes[1];
+  std::cout << "Checksum (from packet): " << checksum << std::endl;
+
+  uint16_t checksum_calculated =
+      std::accumulate(buffer, buffer + packet_length - 2, 0);
+  std::cout << "Checksum (calculated): " << checksum_calculated << std::endl;
+
+  if (checksum_calculated != checksum) {
+    std::cerr << "ERROR: checksums do not match" << std::endl;
+  }
+
   // TODO: define a command packet structure
   //
   //  - PACKET_LENGTH (2 bytes)
   //  - OPCODE (2 bytes)
   //  - PAYLOAD (n bytes)
   //  - checksum (2 bytes, protocol TBD)
-  //
+
   // TODO: how to handle looking up the opcode?
   //
   // cmd definition file: JSON (use JSON library: reference nlohmann/json using

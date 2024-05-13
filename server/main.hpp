@@ -51,5 +51,5 @@ std::size_t type_to_size(std::string type) {
   return map[type];
 }
 
-void handleCommand(std::string message);
+void handleCommand(char* buffer, JsonData& defn);
 JsonData parseDefinitionFile(std::string file_path);
